@@ -1007,38 +1007,50 @@ with gr.Blocks(
         to { transform: translateX(0); }
     }
     .load-more-btn-custom {
-        max-width: 250px !important;
-        margin: 6px auto 10px auto !important;
-        display: block !important;
+        max-width: 180px !important;
+        margin: 0 !important;
+        display: inline-block !important;
         background-color: var(--btn-bg) !important;
         border: 1px solid var(--btn-border) !important;
         color: var(--btn-text) !important;
+        flex-shrink: 0 !important;
     }
     .load-more-btn-custom:hover {
         background-color: var(--btn-hover) !important;
     }
+    #log_control_row {
+        display: flex !important;
+        flex-direction: row !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        margin-top: 8px !important;
+        margin-bottom: 4px !important;
+        padding: 0 4px !important;
+        gap: 12px !important;
+        background: transparent !important;
+        border: none !important;
+        min-height: 0 !important;
+        width: 100% !important;
+    }
     #page_indicator_elem {
-        margin-top: 0px !important;
-        margin-bottom: 0px !important;
-        padding-top: 0px !important;
-        padding-bottom: 0px !important;
-        min-height: 0px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        min-width: unset !important;
+        flex-grow: 1 !important;
+        display: flex !important;
+        align-items: center !important;
     }
     #page_indicator_elem p {
         margin: 0 !important;
         padding: 0 !important;
+        font-size: 13px !important;
+        color: #94a3b8 !important;
+        text-align: left !important;
+        white-space: nowrap !important;
     }
     #log_html_viewer_elem {
         margin-bottom: 0px !important;
         padding-bottom: 0px !important;
-    }
-    #load_more_row {
-        margin: 0 !important;
-        padding: 0 !important;
-        gap: 0 !important;
-        min-height: 0 !important;
-        background: transparent !important;
-        border: none !important;
     }
     #control_row, #hidden_sre_btn, #turn_id_holder, #hidden_load_turn_btn, #custom_sql_input_elem, #hidden_run_custom_query_btn {
         display: none !important;
@@ -1237,13 +1249,19 @@ with gr.Blocks(
                 elem_id="log_html_viewer_elem"
             )
             
-            # 페이지 지시자 및 무한 스크롤(더보기) 컨트롤 인터페이스
-            page_indicator = gr.HTML(
-                value="<p style='text-align: center; margin: 0; padding-top: 5px; color: #94a3b8;'><b>총 0건 중 0건 표시 중</b></p>",
-                elem_id="page_indicator_elem"
-            )
-            with gr.Row(elem_id="load_more_row"):
-                load_more_btn = gr.Button("➕ 더보기 / Load More", variant="secondary", size="sm", elem_id="load_more_btn_elem", elem_classes=["load-more-btn-custom"])
+            # 페이지 지시자 및 무한 스크롤(더보기) 컨트롤 인터페이스 (가로 배치 단일 행 구성)
+            with gr.Row(elem_id="log_control_row"):
+                page_indicator = gr.HTML(
+                    value="<p style='text-align: left; margin: 0; color: #94a3b8;'><b>총 0건 중 0건 표시 중</b></p>",
+                    elem_id="page_indicator_elem"
+                )
+                load_more_btn = gr.Button(
+                    "➕ 더보기 / Load More",
+                    variant="secondary",
+                    size="sm",
+                    elem_id="load_more_btn_elem",
+                    elem_classes=["load-more-btn-custom"]
+                )
 
     # 3. 백엔드 연계를 위한 보이지 않는 브릿지 엘리먼트군 (CSS에 의해 1px 은닉 처리)
     with gr.Row(visible=True, elem_id="control_row"):
