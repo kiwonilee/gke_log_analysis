@@ -413,7 +413,8 @@ def add_user_message(user_message, history):
     if not user_message.strip():
         return user_message, history, user_message
     updated_history = list(history or []) + [
-        {"role": "user", "content": user_message}
+        {"role": "user", "content": user_message},
+        {"role": "assistant", "content": "⏳ *GKE SRE 분석 마스터 가동 중...*"}
     ]
     return "", updated_history, user_message
 
@@ -563,7 +564,10 @@ async def handle_user_query(user_message, history, session_cache):
         else:
             final_answer = answer + "\n\n*(이 질의에 대해 생성된 BigQuery SQL이 없습니다.)*"
 
-        updated_history.append({"role": "assistant", "content": final_answer})
+        if len(updated_history) > 0 and updated_history[-1]["role"] == "assistant":
+            updated_history[-1]["content"] = final_answer
+        else:
+            updated_history.append({"role": "assistant", "content": final_answer})
         
         # 3. 생성된 디버그 SQL이 있으면 수동 실행 대기 상태로 세션 캐시 및 UI 준비 (자동 즉시 실행 제거)
         if debug_sql:
