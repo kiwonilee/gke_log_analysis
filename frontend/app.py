@@ -419,6 +419,71 @@ def add_user_message(user_message, history):
     return "", updated_history, user_message
 
 
+def has_text_content(event):
+    """이벤트 객체에 실제 사용자가 읽을 수 있는 텍스트 답변이 들어있는지 여부를 판단합니다."""
+    if not event:
+        return False
+        
+    # 1. dict 형태인 경우
+    event_dict = {}
+    if isinstance(event, dict):
+        event_dict = event
+    elif hasattr(event, 'model_dump'):
+        try: event_dict = event.model_dump()
+        except: pass
+    elif hasattr(event, 'dict'):
+        try: event_dict = event.dict()
+        except: pass
+        
+    if event_dict:
+        try:
+            parts = event_dict.get('content', {}).get('parts', [])
+            for part in parts:
+                if isinstance(part, dict) and 'text' in part and part['text'] and part['text'].strip():
+                    return True
+        except Exception:
+            pass
+
+    # 2. 객체 속성 직접 접근
+    if hasattr(event, 'text') and getattr(event, 'text') and str(getattr(event, 'text')).strip():
+        return True
+    elif hasattr(event, 'parts') and getattr(event, 'parts'):
+        parts = getattr(event, 'parts')
+        if parts and len(parts) > 0:
+            try:
+                for p in parts:
+                    if hasattr(p, 'text') and p.text and str(p.text).strip():
+                        return True
+            except: pass
+            
+    # 3. Content 객체 등 내부 content 속성 접근
+    if hasattr(event, 'content') and getattr(event, 'content'):
+        content = getattr(event, 'content')
+        if hasattr(content, 'parts') and getattr(content, 'parts'):
+            parts = getattr(content, 'parts')
+            if parts:
+                try:
+                    for p in parts:
+                        if hasattr(p, 'text') and p.text and str(p.text).strip():
+                            return True
+                except: pass
+
+    # 4. 문자열 ast 파싱 시도 (최후의 보루 검증)
+    raw_str = str(event)
+    try:
+        import ast
+        parsed_event = ast.literal_eval(raw_str)
+        if isinstance(parsed_event, dict):
+            parts = parsed_event.get('content', {}).get('parts', [])
+            for part in parts:
+                if isinstance(part, dict) and 'text' in part and part['text'] and part['text'].strip():
+                    return True
+    except Exception:
+        pass
+        
+    return False
+
+
 async def handle_user_query(user_message, history, session_cache):
     """
     사용자의 질문을 입력받아 Conversational Analytics API를 호출하고,
@@ -445,6 +510,7 @@ async def handle_user_query(user_message, history, session_cache):
         session_id = f"session-{turn_id}"
         
         final_event = None
+        last_valid_text_event = None
         
         if REASONING_ENGINE_ID:
             print(f"▶ Querying Remote Agent Runtime: {AGENT_RESOURCE_NAME} (Session: {session_id})")
@@ -459,6 +525,8 @@ async def handle_user_query(user_message, history, session_cache):
             remote_agent = vertex_client.agent_engines.get(name=AGENT_RESOURCE_NAME)
             async for event in remote_agent.async_stream_query(message=user_message, user_id="frontend_user", session_id=session_id):
                 final_event = event
+                if has_text_content(event):
+                    last_valid_text_event = event
         else:
             print(f"▶ Querying Local Agent Runner")
             app_instance = App(name="gke_log_analysis", root_agent=root_agent)
@@ -470,7 +538,12 @@ async def handle_user_query(user_message, history, session_cache):
             
             async for event in runner.run_async(user_id="frontend_user", session_id=session_id, new_message=req_content):
                 final_event = event
+                if has_text_content(event):
+                    last_valid_text_event = event
             
+        if last_valid_text_event:
+            final_event = last_valid_text_event
+
         # --- [응답 파싱 시작] ---
         full_answer = ""
         
@@ -514,7 +587,26 @@ async def handle_user_query(user_message, history, session_cache):
                 pass
                 
             if not full_answer:
-                full_answer = raw_str
+                # final_event가 function_call이나 function_response를 포함하는 중간 이벤트인 경우,
+                # 사용자에게 가공되지 않은 딕셔너리를 보여주는 대신 친절한 에러 문구로 안내합니다.
+                is_intermediate = False
+                if raw_str:
+                    try:
+                        import ast
+                        parsed_event = ast.literal_eval(raw_str)
+                        if isinstance(parsed_event, dict):
+                            parts = parsed_event.get('content', {}).get('parts', [])
+                            for part in parts:
+                                if isinstance(part, dict) and ('function_call' in part or 'function_response' in part):
+                                    is_intermediate = True
+                                    break
+                    except:
+                        pass
+                
+                if is_intermediate or (raw_str and ("function_response" in raw_str or "function_call" in raw_str)):
+                    full_answer = "⚠️ **에이전트 통신 및 답변 생성 오류**\n\n모델 API(Gemini)가 일시적으로 과부하(Overloaded) 상태이거나 네트워크 지연으로 인해 최종 텍스트 답변을 완성하지 못했습니다. 잠시 후 다시 한 번 질문을 전송해 주시기 바랍니다."
+                else:
+                    full_answer = raw_str if raw_str else "⚠️ 에이전트로부터 응답을 받지 못했습니다."
         # --- [응답 파싱 끝] ---
         
         # 만약 여전히 딕셔너리 문자열이 노출된다면 정규식으로 한 번 더 강제 추출 시도
