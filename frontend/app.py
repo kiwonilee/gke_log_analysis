@@ -414,7 +414,7 @@ def add_user_message(user_message, history):
         return user_message, history, user_message
     updated_history = list(history or []) + [
         {"role": "user", "content": user_message},
-        {"role": "assistant", "content": "⏳ *로그를 분석하는 중입니다.....*"}
+        {"role": "assistant", "content": "<div class='sre-loading-indicator'>⏳ <span>로그를 분석하는 중입니다</span><span class='sre-dot'>.</span><span class='sre-dot'>.</span><span class='sre-dot'>.</span></div>"}
     ]
     return "", updated_history, user_message
 
@@ -1051,6 +1051,49 @@ with gr.Blocks(
     #log_html_viewer_elem {
         margin-bottom: 0px !important;
         padding-bottom: 0px !important;
+    }
+    /* =========================================
+       🤖 AI SRE 마이크로 로딩 애니메이션
+       ========================================= */
+    /* Gradio 자체의 기본 챗봇 대기(pending) 애니메이션 말풍선 숨기기 (중복 노출 제거) */
+    #sre_chatbot .pending,
+    #sre_chatbot .generating,
+    #sre_chatbot .message.pending,
+    #sre_chatbot [class*="pending"],
+    #sre_chatbot [class*="generating"],
+    #sre_chatbot .loading,
+    #sre_chatbot .dot-flashing {
+        display: none !important;
+    }
+
+    .sre-loading-indicator {
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 2px !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 14px !important;
+        color: var(--bot-text) !important;
+        padding: 4px 0 !important;
+    }
+    .sre-loading-indicator span {
+        display: inline-block !important;
+    }
+    .sre-dot {
+        display: inline-block !important;
+        font-size: 18px !important;
+        line-height: 1 !important;
+        animation: sreDotFlashing 1.4s infinite both !important;
+        font-weight: 800 !important;
+    }
+    .sre-dot:nth-child(2) { animation-delay: 0.2s !important; }
+    .sre-dot:nth-child(3) { animation-delay: 0.4s !important; }
+    .sre-dot:nth-child(4) { animation-delay: 0.6s !important; }
+    
+    @keyframes sreDotFlashing {
+        0% { opacity: 0.15; transform: translateY(0) scale(1); }
+        35% { opacity: 1; transform: translateY(-3px) scale(1.3); color: #3b82f6; }
+        70% { opacity: 0.15; transform: translateY(0) scale(1); }
+        100% { opacity: 0.15; transform: translateY(0) scale(1); }
     }
     #control_row, #hidden_sre_btn, #turn_id_holder, #hidden_load_turn_btn, #custom_sql_input_elem, #hidden_run_custom_query_btn {
         display: none !important;
