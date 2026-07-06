@@ -98,7 +98,7 @@ def render_log_html(raw_json_list, limit=50):
             border-radius: 8px;
             overflow-y: auto;
             overflow-x: hidden;
-            height: calc(100vh - 250px);
+            height: calc(100vh - 160px);
             box-shadow: 0 4px 20px var(--shadow);
             width: 100%;
         }
@@ -986,9 +986,10 @@ with gr.Blocks(
         box-shadow: -10px 0 30px var(--panel-shadow) !important;
         border-radius: 0 !important;
         border-left: 1px solid var(--panel-border) !important;
-        padding: 20px !important;
+        padding: 16px 16px 12px 16px !important;
         overflow-y: auto !important;
         overflow-x: hidden !important;
+        gap: 6px !important;
         animation: slideInRight 0.3s ease-out;
     }
     /* 대화창 내부 텍스트 폰트 및 크기 일관성 유지 */
@@ -1007,7 +1008,7 @@ with gr.Blocks(
     }
     .load-more-btn-custom {
         max-width: 250px !important;
-        margin: 15px auto !important;
+        margin: 6px auto 10px auto !important;
         display: block !important;
         background-color: var(--btn-bg) !important;
         border: 1px solid var(--btn-border) !important;
@@ -1015,6 +1016,21 @@ with gr.Blocks(
     }
     .load-more-btn-custom:hover {
         background-color: var(--btn-hover) !important;
+    }
+    #page_indicator_elem {
+        margin-top: 0px !important;
+        margin-bottom: 0px !important;
+        padding-top: 0px !important;
+        padding-bottom: 0px !important;
+        min-height: 0px !important;
+    }
+    #page_indicator_elem p {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    #log_html_viewer_elem {
+        margin-bottom: 0px !important;
+        padding-bottom: 0px !important;
     }
     #control_row, #hidden_sre_btn, #turn_id_holder, #hidden_load_turn_btn, #custom_sql_input_elem, #hidden_run_custom_query_btn {
         display: none !important;
@@ -1218,8 +1234,7 @@ with gr.Blocks(
                 value="<p style='text-align: center; margin: 0; padding-top: 5px; color: #94a3b8;'><b>총 0건 중 0건 표시 중</b></p>",
                 elem_id="page_indicator_elem"
             )
-            with gr.Row():
-                load_more_btn = gr.Button("➕ 더보기 / Load More", variant="secondary", size="sm", elem_id="load_more_btn_elem", elem_classes=["load-more-btn-custom"])
+            load_more_btn = gr.Button("➕ 더보기 / Load More", variant="secondary", size="sm", elem_id="load_more_btn_elem", elem_classes=["load-more-btn-custom"])
 
     # 3. 백엔드 연계를 위한 보이지 않는 브릿지 엘리먼트군 (CSS에 의해 1px 은닉 처리)
     with gr.Row(visible=True, elem_id="control_row"):
