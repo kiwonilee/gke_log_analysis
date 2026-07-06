@@ -516,7 +516,7 @@ async def handle_user_query(user_message, history, session_cache):
             print(f"▶ Querying Remote Agent Runtime: {AGENT_RESOURCE_NAME} (Session: {session_id})")
             
             # 명시적으로 Remote Agent Engine 쪽에 세션을 생성해 주어야 498 (Session not found) 에러가 나지 않음
-            vertex_client.agent_engines.create_session(
+            vertex_client.agent_engines.sessions.create(
                 name=AGENT_RESOURCE_NAME,
                 user_id="frontend_user",
                 config={"session_id": session_id}
