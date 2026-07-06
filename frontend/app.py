@@ -1032,6 +1032,14 @@ with gr.Blocks(
         margin-bottom: 0px !important;
         padding-bottom: 0px !important;
     }
+    #load_more_row {
+        margin: 0 !important;
+        padding: 0 !important;
+        gap: 0 !important;
+        min-height: 0 !important;
+        background: transparent !important;
+        border: none !important;
+    }
     #control_row, #hidden_sre_btn, #turn_id_holder, #hidden_load_turn_btn, #custom_sql_input_elem, #hidden_run_custom_query_btn {
         display: none !important;
     }
@@ -1215,7 +1223,7 @@ with gr.Blocks(
         # 📊 은닉 데이터 브릿지 영역 (Gradio 백엔드와 JS 통신용, CSS 절대값 은닉 기법 적용)
         with gr.Column(scale=1, visible=False, elem_id="hidden_data_bridge") as data_col:
             with gr.Row():
-                gr.Markdown("### 📊 GKE Logs Table (BigQuery)")
+                gr.Markdown("### 💻 GKE 원본 로그 뷰어")
                 close_btn = gr.Button("✖ 닫기", size="sm")
 
             
@@ -1234,7 +1242,8 @@ with gr.Blocks(
                 value="<p style='text-align: center; margin: 0; padding-top: 5px; color: #94a3b8;'><b>총 0건 중 0건 표시 중</b></p>",
                 elem_id="page_indicator_elem"
             )
-            load_more_btn = gr.Button("➕ 더보기 / Load More", variant="secondary", size="sm", elem_id="load_more_btn_elem", elem_classes=["load-more-btn-custom"])
+            with gr.Row(elem_id="load_more_row"):
+                load_more_btn = gr.Button("➕ 더보기 / Load More", variant="secondary", size="sm", elem_id="load_more_btn_elem", elem_classes=["load-more-btn-custom"])
 
     # 3. 백엔드 연계를 위한 보이지 않는 브릿지 엘리먼트군 (CSS에 의해 1px 은닉 처리)
     with gr.Row(visible=True, elem_id="control_row"):
