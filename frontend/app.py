@@ -414,7 +414,7 @@ def add_user_message(user_message, history):
         return user_message, history, user_message
     updated_history = list(history or []) + [
         {"role": "user", "content": user_message},
-        {"role": "assistant", "content": "⏳ *GKE SRE 분석 마스터 가동 중...*"}
+        {"role": "assistant", "content": "⏳ *로그를 분석하는 중입니다.....*"}
     ]
     return "", updated_history, user_message
 
