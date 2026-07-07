@@ -1,6 +1,6 @@
 # GKE Log Analysis AI Agent
 
-GKE 로그 분석 및 문제 해결을 지원하는 AI 에이전트입니다. Data Agent와 BigQuery 통합을 활용하여 자연어 질의를 SQL로 변환하고 시스템 에러를 분석하여 SRE 전문가 수준의 가이드를 제공합니다.
+BigQuery 에 수집되는 GKE 로그를 대상으로, 로그 분석 및 문제 해결을 지원하는 AI 에이전트입니다. Data Agent와 BigQuery 통합을 활용하여 자연어 질의를 SQL로 변환하고 시스템 에러를 분석하여 SRE 전문가 수준의 가이드를 제공합니다.
 
 ## 🚀 Agent Runtime 배포를 위한 기본 설정
 
@@ -26,7 +26,9 @@ export PROJECT_ID="YOUR_PROJECT_ID"
 export LOCATION="us-central1"
 export STAGING_BUCKET_URI="gs://adk-${PROJECT_ID}"
 export SERVICE_ACCOUNT="sa-gke-log-analysis"
-export BQ_DATASET_ID="YOUR_BIGQUERY_DATASET_ID"
+
+# Cloud Logging 이 수집되고 있는 BigQuery 의 Dataset ID
+export BQ_DATASET_ID="YOUR_BIGQUERY_DATASET_ID" 
 ```
 
 ### 2. Cloud Storage 버킷 생성
@@ -73,7 +75,7 @@ done
 # 환경 변수 템플릿을 치환하여 로컬 .env 생성 (gke_log_analysis 디렉토리 내부에서 실행)
 sed -e "s|YOUR_GOOGLE_CLOUD_PROJECT_ID|${PROJECT_ID}|g" \
     -e "s|YOUR_GCP_RESOURCE_LOCATION|${LOCATION}|g" \
-    -e "s|gs://adk-sandbox-bucket|${STAGING_BUCKET_URI}|g" \
+    -e "s|YOUR_BUCKET_URI|${STAGING_BUCKET_URI}|g" \
     -e "s|YOUR_SA_EMAIL|${SA_EMAIL}|g" \
     -e "s|YOUR_BIGQUERY_DATASET_ID|${BQ_DATASET_ID}|g" \
     .env.template > .env
@@ -91,9 +93,20 @@ cat .env
 uv run python agent_runtime.py
 ```
 
+```bash
+export AGENT_RUNTIME_ID=
+echo "AGENT_RUNTIME_ID=${AGENT_RUNTIME_ID}" >> .env
+```
+
+## 🚀 Frontend 배포
+```bash
+./frontend/deploy.sh
+```
+
+
 ---
 
-## 🔍 테스트
+## 🔍 Agent Runtime 테스트
 
 배포 완료 후 반환받은 `REASONING_ENGINE_ID`를 이용하여 에이전트와 대화를 시작하고 동작을 직접 검증합니다.
 

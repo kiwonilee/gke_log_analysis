@@ -8,9 +8,6 @@ import google.auth
 
 PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT", "gcp-sandbox-kwlee")
 
-# GKE 환경(또는 Cloud Run)에서 모듈 로드 시점에 동기적인 네트워크 호출(credentials.refresh)을 수행하면
-# 컨테이너 시작 타임아웃이나 오류(Code 13)가 발생할 수 있습니다. 
-# google.auth 라이브러리는 필요 시 자동으로 토큰을 발급/갱신하므로 명시적인 refresh는 불필요합니다.
 credentials, _ = google.auth.default()
 credentials_config = DataAgentCredentialsConfig(credentials=credentials)
 
