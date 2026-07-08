@@ -5,17 +5,14 @@ ENV PORT=8080
 
 WORKDIR /app
 
-# Install uv
-RUN pip install uv
-
 # Copy the dependencies
-COPY pyproject.toml .
+COPY requirements.txt .
 
-# Install dependencies using uv
-RUN uv pip install --system -r pyproject.toml
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application
 COPY . .
 
 # Run the app
-CMD ["python", "frontend/app.py"]
+CMD ["python", "app.py"]

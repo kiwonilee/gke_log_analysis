@@ -18,13 +18,6 @@ if current_dir not in sys.path:
 
 from bigquery_client import run_query_on_bigquery_async
 
-import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from agent import root_agent
-from google.adk.apps import App
-from google.adk.sessions import InMemorySessionService
-from google.adk.runners import Runner
-from google.genai import types
 
 
 # Gradio 컨테이너 네트워크 충돌 방지
@@ -41,7 +34,7 @@ else:
 
 PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCP_PROJECT")
 LOCATION = os.environ.get("GCP_RESOURCES_LOCATION", "us-central1")
-REASONING_ENGINE_ID = os.environ.get("AGENT_RUNTIME_ID")
+REASONING_ENGINE_ID = os.environ.get("AGENT_RUNTIME_ID") or os.environ.get("REASONING_ENGINE_ID")
 
 if REASONING_ENGINE_ID:
     AGENT_RESOURCE_NAME = f"projects/{PROJECT_ID}/locations/{LOCATION}/reasoningEngines/{REASONING_ENGINE_ID}"
@@ -528,18 +521,7 @@ async def handle_user_query(user_message, history, session_cache):
                 if has_text_content(event):
                     last_valid_text_event = event
         else:
-            print(f"▶ Querying Local Agent Runner")
-            app_instance = App(name="gke_log_analysis", root_agent=root_agent)
-            session_service = InMemorySessionService()
-            await session_service.create_session(app_name="gke_log_analysis", user_id="frontend_user", session_id=session_id)
-            
-            runner = Runner(app=app_instance, session_service=session_service)
-            req_content = types.Content(role="user", parts=[types.Part.from_text(text=user_message)])
-            
-            async for event in runner.run_async(user_id="frontend_user", session_id=session_id, new_message=req_content):
-                final_event = event
-                if has_text_content(event):
-                    last_valid_text_event = event
+            raise RuntimeError("Local Agent Runner is disabled. Please configure REASONING_ENGINE_ID to use Remote Mode.")
             
         if last_valid_text_event:
             final_event = last_valid_text_event

@@ -1,0 +1,7 @@
+gradio>=4.0.0
+pandas
+python-dotenv
+google-cloud-aiplatform>=1.155.0
+google-cloud-bigquery>=3.41.0
+google-cloud-storage>=2.14.0
+db-dtypes

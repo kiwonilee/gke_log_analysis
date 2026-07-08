@@ -14,12 +14,12 @@ echo -e "${BLUE}====================================================${NC}"
 echo -e "${BLUE}   🚀 GKE SRE Frontend Cloud Run Deployer  ${NC}"
 echo -e "${BLUE}====================================================${NC}"
 
-# Ensure we are in the root directory where the Dockerfile resides
+# Ensure we are in the frontend directory where this script and Dockerfile reside
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cd "$SCRIPT_DIR/.."
+cd "$SCRIPT_DIR"
 
 # Try to dynamically load from parent .env file if it exists
-ENV_PATH=".env"
+ENV_PATH="../.env"
 if [ -f "$ENV_PATH" ]; then
     echo -e "${YELLOW}ℹ .env file found. Auto-loading configuration...${NC}"
     # Read variables from .env ignoring comments and blank lines
@@ -28,6 +28,7 @@ if [ -f "$ENV_PATH" ]; then
     export GCP_RESOURCES_LOCATION=$(grep -E '^GCP_RESOURCES_LOCATION=' "$ENV_PATH" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
     export SERVICE_ACCOUNT=$(grep -E '^SERVICE_ACCOUNT=' "$ENV_PATH" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
     export BQ_DATASET_ID=$(grep -E '^BQ_DATASET_ID=' "$ENV_PATH" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+    export AGENT_RUNTIME_ID=$(grep -E '^AGENT_RUNTIME_ID=' "$ENV_PATH" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
     export REASONING_ENGINE_ID=$(grep -E '^REASONING_ENGINE_ID=' "$ENV_PATH" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
     export GOOGLE_GENAI_USE_VERTEXAI=$(grep -E '^GOOGLE_GENAI_USE_VERTEXAI=' "$ENV_PATH" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
 fi
@@ -55,7 +56,7 @@ gcloud run deploy "$SERVICE_NAME" \
   --service-account "$SERVICE_ACCOUNT_EMAIL" \
   --allow-unauthenticated \
   --memory 2Gi \
-  --set-env-vars GOOGLE_CLOUD_PROJECT="$PROJECT_ID",GOOGLE_CLOUD_LOCATION="${GOOGLE_CLOUD_LOCATION:-global}",GCP_RESOURCES_LOCATION="$REGION",PYTHONUNBUFFERED=1,BQ_DATASET_ID="${BQ_DATASET_ID:-ob_log}",REASONING_ENGINE_ID="$REASONING_ENGINE_ID",GOOGLE_GENAI_USE_VERTEXAI="${GOOGLE_GENAI_USE_VERTEXAI:-true}"
+  --set-env-vars GOOGLE_CLOUD_PROJECT="$PROJECT_ID",GOOGLE_CLOUD_LOCATION="${GOOGLE_CLOUD_LOCATION:-global}",GCP_RESOURCES_LOCATION="$REGION",PYTHONUNBUFFERED=1,BQ_DATASET_ID="${BQ_DATASET_ID:-ob_log}",AGENT_RUNTIME_ID="${AGENT_RUNTIME_ID:-$REASONING_ENGINE_ID}",REASONING_ENGINE_ID="${REASONING_ENGINE_ID:-$AGENT_RUNTIME_ID}",GOOGLE_GENAI_USE_VERTEXAI="${GOOGLE_GENAI_USE_VERTEXAI:-true}"
 
 echo -e "\n${GREEN}✔ Serverless Container Deployment Completed Successfully!${NC}"
 
