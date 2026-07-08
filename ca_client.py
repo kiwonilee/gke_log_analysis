@@ -3,11 +3,12 @@
 자연어 질의를 통해 GCP BigQuery GKE 로그 테이블을 분석하고 응답 및 생성된 SQL을 획득하는 모듈입니다.
 """
 
+import asyncio
 import collections
+import datetime
 import logging
 import os
 import re
-import datetime
 from pathlib import Path
 from typing import Optional, Tuple
 from dotenv import load_dotenv
@@ -24,21 +25,32 @@ PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCP_PROJE
 BQ_DATASET_ID = os.environ.get("BQ_DATASET_ID")
 LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "global")
 
-def get_or_create_data_agent(client, parent: str, display_name: str, log_context: str):
+# PEP 8 준수 및 실행 오버헤드 최소화를 위한 정규식 프리컴파일
+TABLE_SUFFIX_PATTERN = re.compile(r'_\d{8}$')
+SAFE_CONTEXT_PATTERN = re.compile(r'[^a-zA-Z0-9\s\-]')
+
+
+def get_or_create_data_agent(
+    client: geminidataanalytics.DataAgentServiceClient, 
+    parent: str, 
+    display_name: str, 
+    log_context: str
+) -> geminidataanalytics.DataAgent:
     """지정된 display_name의 DataAgent를 조회하여, 존재 시 최신 테이블 참조 및 시간 정보를 포함해 업데이트하고 없으면 신규 생성합니다."""
     
-    # 최신 7일치의 로그 테이블만 선별 (BigQuery 400개 테이블 한도 초과 에러 방지)
-    bq_client = bigquery.Client(project=PROJECT_ID)
-    all_tables = sorted(
-        bq_client.list_tables(bq_client.dataset(BQ_DATASET_ID)),
-        key=lambda t: t.table_id,
-        reverse=True
-    )
+    # 최신 5일치의 로그 테이블만 선별 (BigQuery 400개 테이블 한도 초과 방지 및 5일 제한 정책과 정밀 일치)
+    # Context Manager를 활용해 BigQuery Client 리소스의 안정적인 Lifecycle 보장
+    with bigquery.Client(project=PROJECT_ID) as bq_client:
+        all_tables = sorted(
+            bq_client.list_tables(bq_client.dataset(BQ_DATASET_ID)),
+            key=lambda t: t.table_id,
+            reverse=True
+        )
     
     tables_by_prefix = collections.defaultdict(list)
     for t in all_tables:
-        prefix = re.sub(r'_\d{8}$', '', t.table_id)
-        if len(tables_by_prefix[prefix]) < 7:
+        prefix = TABLE_SUFFIX_PATTERN.sub('', t.table_id)
+        if len(tables_by_prefix[prefix]) < 5:  # 7일에서 5일로 엄격 제한하여 정합성 맞춤
             tables_by_prefix[prefix].append(t)
             
     selected_tables = [t for table_list in tables_by_prefix.values() for t in table_list]
@@ -55,14 +67,12 @@ def get_or_create_data_agent(client, parent: str, display_name: str, log_context
         for t in selected_tables
     ]
 
-    # 현재 오늘 날짜 및 상대 시간 정보 동적 계산
-    # (실시간 시스템 일자를 반영하지만, 사용자가 어제라고 지칭할 경우 정확히 타겟팅 가능하도록 명시)
-    today = datetime.date(2026, 7, 8)  # 실배포 시에는 datetime.date.today() 활용 가능
+    # 시스템 실시간 일자(datetime.date.today())를 연동하여 완전 자동화 달성 (최대 5일간의 가이드 매핑)
+    today = datetime.date.today()
     yesterday = today - datetime.timedelta(days=1)
     two_days_ago = today - datetime.timedelta(days=2)
     three_days_ago = today - datetime.timedelta(days=3)
     four_days_ago = today - datetime.timedelta(days=4)
-    five_days_ago = today - datetime.timedelta(days=5)
 
     system_instruction = (
         f"""당신은 GKE(Google Kubernetes Engine) 로그 분석 및 BigQuery SQL 작성 전문가입니다. `{PROJECT_ID}.{BQ_DATASET_ID}` 데이터셋의 로그를 분석하세요.
@@ -86,12 +96,11 @@ def get_or_create_data_agent(client, parent: str, display_name: str, log_context
 
         [기준 시간 정보 및 테이블 매핑 가이드 (필독)]
         - **기준 시간 정보**:
-          * 오늘 날짜: {today.strftime('%Y-%m-%d')} (수요일)
-          * 어제 날짜: {yesterday.strftime('%Y-%m-%d')} (화요일)
-          * 그저께 날짜: {two_days_ago.strftime('%Y-%m-%d')} (월요일)
+          * 오늘 날짜: {today.strftime('%Y-%m-%d')}
+          * 어제 날짜: {yesterday.strftime('%Y-%m-%d')}
+          * 그저께 날짜: {two_days_ago.strftime('%Y-%m-%d')}
           * 3일 전 날짜: {three_days_ago.strftime('%Y-%m-%d')}
           * 4일 전 날짜: {four_days_ago.strftime('%Y-%m-%d')}
-          * 5일 전 날짜: {five_days_ago.strftime('%Y-%m-%d')}
 
         - **테이블 이름 규칙**: 이 데이터셋의 테이블들은 이름 뒤에 `_YYYYMMDD` (예: `stdout_20260708`) 형태로 날짜 서픽스가 붙어있습니다.
         - **날짜 해석 규칙**:
@@ -154,7 +163,8 @@ def get_or_create_data_agent(client, parent: str, display_name: str, log_context
                 data_agent=data_agent,
                 update_mask={"paths": ["data_analytics_agent.published_context"]}
             )
-            return client.update_data_agent(request=req).result()
+            # 60초 안전 대기 타임아웃 부여로 데드락 차단
+            return client.update_data_agent(request=req).result(timeout=60)
         except Exception as e:
             logging.error(f"기존 DataAgent 갱신 실패(삭제 후 재생성 시도): {e}")
             try:
@@ -164,9 +174,10 @@ def get_or_create_data_agent(client, parent: str, display_name: str, log_context
 
     # 2. 신규 생성
     logging.info("새로운 DataAgent를 생성합니다.")
+    # 60초 안전 대기 타임아웃 부여로 데드락 차단
     return client.create_data_agent(
         request=geminidataanalytics.CreateDataAgentRequest(parent=parent, data_agent=data_agent)
-    ).result()
+    ).result(timeout=60)
 
 
 async def query_with_conversational_analytics_api(question: str) -> Tuple[str, Optional[str]]:
@@ -179,10 +190,9 @@ async def query_with_conversational_analytics_api(question: str) -> Tuple[str, O
     chat_client = geminidataanalytics.DataChatServiceClient()
     parent = f"projects/{PROJECT_ID}/locations/{LOCATION}"
     
-    safe_context = re.sub(r'[^a-zA-Z0-9\s\-]', '', log_context)[:40].strip()
+    safe_context = SAFE_CONTEXT_PATTERN.sub('', log_context)[:40].strip()
     display_name = f"Log Agent - {safe_context}" if safe_context else "GKE-Log-Analytics-Agent"
     
-    import asyncio
     data_agent = await asyncio.to_thread(get_or_create_data_agent, agent_client, parent, display_name, log_context)
     
     messages = [geminidataanalytics.Message()]

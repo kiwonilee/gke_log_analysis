@@ -1,30 +1,31 @@
 import os
+import google.auth
 from google.adk.agents import Agent
 from google.adk.integrations.bigquery import BigQueryToolset
 from google.adk.integrations.bigquery.config import BigQueryToolConfig
+
 try:
     from callbacks import log_final_report_callback, before_tool_logging_callback, after_tool_logging_callback
 except ImportError:
     from .callbacks import log_final_report_callback, before_tool_logging_callback, after_tool_logging_callback
-import google.auth
 
-# 방안 1 Custom Tool을 위한 임포트
+# Custom Conversational Analytics API 연동 도구 임포트
 from ca_client import query_with_conversational_analytics_api
 
-PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT", "gcp-sandbox-kwlee")
+PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCP_PROJECT") or os.environ.get("PROJECT_ID") or "gcp-sandbox-kwlee"
 
+# 구글 인증 정보 획득
 credentials, _ = google.auth.default()
 
-# Custom Tool Wrapper 비동기 함수 정의
+
 async def analyze_logs(question: str) -> str:
-    """자연어로 GKE 로그 분석 요청을 받으면, Conversational Analytics API를 활용하여 
-    분석을 수행하고 그 결과(분석 요약본 및 원본 디버깅 SQL 쿼리)를 반환합니다.
+    """GKE(Google Kubernetes Engine) 로그를 분석하고 연관된 BigQuery SQL을 생성하는 SRE 전용 도구입니다.
 
     Args:
-        question: GKE 로그 분석과 관련하여 묻고자 하는 자연어 질문 (예: "최근 3일간 에러 로그 분석해줘")
+        question: 분석 대상이 되는 GKE 장애 현상, 에러 메시지, 또는 특정 네임스페이스 관련 자연어 질문.
 
     Returns:
-        분석 요약 및 생성된 SQL 쿼리가 포함된 마크다운 텍스트
+        분석 요약 마크다운 텍스트와 추출된 BigQuery SQL 구문을 포함하는 상세 결과 문자열.
     """
     answer, generated_sql = await query_with_conversational_analytics_api(question)
     result = f"### [분석 요약]\n{answer}\n\n"
@@ -34,7 +35,8 @@ async def analyze_logs(question: str) -> str:
         result += "### [생성된 SQL]\n(SQL이 생성되지 않았습니다.)"
     return result
 
-# https://adk.dev/integrations/bigquery/
+
+# ADK BigQuery 통합 도구 도구셋 초기화 (https://adk.dev/integrations/bigquery/)
 bq_tool_config = BigQueryToolConfig()
 bq_toolset = BigQueryToolset(
     credentials_config=credentials,
@@ -105,6 +107,7 @@ agent_instruction = f"""
     ## 🛠️ 원본 조회 쿼리
 """
 
+# ADK Core Model 사양을 엄격히 계승 (AI Model Configuration 보존 필수 규칙 이행)
 root_agent = Agent(
     name="gke_log_analysis",
     model="gemini-3.5-flash",
