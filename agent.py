@@ -12,7 +12,7 @@ credentials, _ = google.auth.default()
 credentials_config = DataAgentCredentialsConfig(credentials=credentials)
 
 tool_config = DataAgentToolConfig(
-    max_query_result_rows=1000, # Default 50
+    max_query_result_rows=200, # Reduced from 1000 to prevent Vertex AI 429 Resource Exhausted (TPM quota exceeded)
 )
 
 # https://adk.dev/integrations/data-agent/
