@@ -1340,7 +1340,6 @@ with gr.Blocks(
             
             with gr.Row(elem_id="chat_input_row"):
                 user_input = gr.Textbox(
-                    value="지난 3일간의 에러 로그 분석해줘",
                     placeholder="Ask for cluster analysis or script generation...",
                     show_label=False,
                     container=False,

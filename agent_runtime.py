@@ -47,7 +47,7 @@ config = {
         "google-cloud-monitoring",
     ],
     "staging_bucket": STAGING_BUCKET,
-    "extra_packages": ["agent.py"],
+    "extra_packages": ["agent.py", "ca_client.py", "callbacks.py"],
     "env_vars": {
         "GOOGLE_CLOUD_LOCATION": "global",
         "GOOGLE_GENAI_USE_VERTEXAI": "TRUE",            

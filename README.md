@@ -2,6 +2,8 @@
 
 BigQuery 에 수집되는 GKE 로그를 대상으로, 로그 분석 및 문제 해결을 지원하는 AI 에이전트입니다. Data Agent와 BigQuery 통합을 활용하여 자연어 질의를 SQL로 변환하고 시스템 에러를 분석하여 SRE 전문가 수준의 가이드를 제공합니다.
 
+![System Architecture](images/design.png)
+
 ## 🚀 Agent Runtime 배포를 위한 기본 설정
 
 ### 1. 환경 변수 및 관련 API 활성화
@@ -99,8 +101,26 @@ echo "AGENT_RUNTIME_ID=${AGENT_RUNTIME_ID}" >> .env
 ```
 
 ## 🚀 Frontend 배포
+
+프론트엔드 Gradio 애플리케이션은 **독립된 경량 컨테이너 아키텍처**로 설계되어 있습니다. 배포 스크립트를 실행하여 Cloud Run에 신속히 배포합니다.
+
 ```bash
-./frontend/deploy.sh
+# 프론트엔드 단독 배포
+./frontend/deploy_cloud_run.sh
+```
+
+> [!NOTE]
+> 프론트엔드 배포는 `frontend/Dockerfile`과 `frontend/requirements.txt`를 기반으로 동작하여, 빌드 시 오직 프론트엔드 폴더(`frontend/`)만 도커 컨텍스트로 업로드하기 때문에 전송 및 컨테이너 빌드가 매우 신속하게 처리됩니다.
+
+---
+
+## 🚀 일괄 배포 (Full Deployment)
+
+Agent Runtime(원격 에이전트)과 Cloud Run Frontend(프론트엔드)를 일괄적으로 한 번에 배포하고 싶다면, 프로젝트 루트에서 마스터 배포 스크립트를 실행해 줍니다.
+
+```bash
+# 에이전트와 프론트엔드를 한 번에 일괄 배포
+./deploy.sh
 ```
 
 

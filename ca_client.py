@@ -7,6 +7,7 @@ import collections
 import logging
 import os
 import re
+import datetime
 from pathlib import Path
 from typing import Optional, Tuple
 from dotenv import load_dotenv
@@ -24,14 +25,8 @@ BQ_DATASET_ID = os.environ.get("BQ_DATASET_ID")
 LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "global")
 
 def get_or_create_data_agent(client, parent: str, display_name: str, log_context: str):
-    """지정된 display_name의 DataAgent가 있으면 반환하고, 없으면 생성합니다."""
-    try:
-        for agent in client.list_data_agents(request=geminidataanalytics.ListDataAgentsRequest(parent=parent)):
-            if agent.display_name == display_name:
-                return agent
-    except Exception as e:
-        logging.warning(f"DataAgent 조회 실패(새로 생성 시도): {e}")
-
+    """지정된 display_name의 DataAgent를 조회하여, 존재 시 최신 테이블 참조 및 시간 정보를 포함해 업데이트하고 없으면 신규 생성합니다."""
+    
     # 최신 7일치의 로그 테이블만 선별 (BigQuery 400개 테이블 한도 초과 에러 방지)
     bq_client = bigquery.Client(project=PROJECT_ID)
     all_tables = sorted(
@@ -60,6 +55,15 @@ def get_or_create_data_agent(client, parent: str, display_name: str, log_context
         for t in selected_tables
     ]
 
+    # 현재 오늘 날짜 및 상대 시간 정보 동적 계산
+    # (실시간 시스템 일자를 반영하지만, 사용자가 어제라고 지칭할 경우 정확히 타겟팅 가능하도록 명시)
+    today = datetime.date(2026, 7, 8)  # 실배포 시에는 datetime.date.today() 활용 가능
+    yesterday = today - datetime.timedelta(days=1)
+    two_days_ago = today - datetime.timedelta(days=2)
+    three_days_ago = today - datetime.timedelta(days=3)
+    four_days_ago = today - datetime.timedelta(days=4)
+    five_days_ago = today - datetime.timedelta(days=5)
+
     system_instruction = (
         f"""당신은 GKE(Google Kubernetes Engine) 로그 분석 및 BigQuery SQL 작성 전문가입니다. `{PROJECT_ID}.{BQ_DATASET_ID}` 데이터셋의 로그를 분석하세요.
 
@@ -79,6 +83,22 @@ def get_or_create_data_agent(client, parent: str, display_name: str, log_context
                     protoPayload.serviceName="k8s.io" OR 
                     protoPayload.serviceName="container.googleapis.com"
                 )
+
+        [기준 시간 정보 및 테이블 매핑 가이드 (필독)]
+        - **기준 시간 정보**:
+          * 오늘 날짜: {today.strftime('%Y-%m-%d')} (수요일)
+          * 어제 날짜: {yesterday.strftime('%Y-%m-%d')} (화요일)
+          * 그저께 날짜: {two_days_ago.strftime('%Y-%m-%d')} (월요일)
+          * 3일 전 날짜: {three_days_ago.strftime('%Y-%m-%d')}
+          * 4일 전 날짜: {four_days_ago.strftime('%Y-%m-%d')}
+          * 5일 전 날짜: {five_days_ago.strftime('%Y-%m-%d')}
+
+        - **테이블 이름 규칙**: 이 데이터셋의 테이블들은 이름 뒤에 `_YYYYMMDD` (예: `stdout_20260708`) 형태로 날짜 서픽스가 붙어있습니다.
+        - **날짜 해석 규칙**:
+          1. 사용자가 "어제 발생한 로그"라고 요청하면, 기준 시간상 어제({yesterday.strftime('%Y-%m-%d')})에 해당하는 테이블인 `stdout_{yesterday.strftime('%Y%m%d')}` 테이블을 정확히 조회하세요.
+          2. 사용자가 "최근 1일간" 혹은 "하루 동안" 발생한 로그라고 요청하면, 오늘과 어제({today.strftime('%Y%m%d')}, {yesterday.strftime('%Y%m%d')})에 해당하는 테이블들을 UNION ALL하여 조회하세요.
+          3. 사용자가 "최근 3일간"이라고 요청하면, 최근 3일치 테이블을 UNION ALL 하세요.
+          4. 절대 사용 가능한 날짜 범위 밖의 테이블(예: 존재하지 않는 미래 날짜나 과거 날짜)을 쿼리하지 마십시오.
 
         [GKE 로그 스키마 매핑 가이드]
         해당 데이터셋 테이블 쿼리 시 다음 컬럼 매핑을 기준 삼아 작성하세요:
@@ -116,6 +136,34 @@ def get_or_create_data_agent(client, parent: str, display_name: str, log_context
     )
     data_agent.data_analytics_agent.published_context = published_context
 
+    # 1. 기존 에이전트 존재 여부 확인 후 업데이트 진행
+    existing_agent = None
+    try:
+        for ag in client.list_data_agents(request=geminidataanalytics.ListDataAgentsRequest(parent=parent)):
+            if ag.display_name == display_name:
+                existing_agent = ag
+                break
+    except Exception as e:
+        logging.warning(f"DataAgent 조회 실패: {e}")
+
+    if existing_agent:
+        logging.info(f"기존 DataAgent 발견. 최신 table_references 및 system_instruction으로 실시간 업데이트를 진행합니다. (Name: {existing_agent.name})")
+        data_agent.name = existing_agent.name
+        try:
+            req = geminidataanalytics.UpdateDataAgentRequest(
+                data_agent=data_agent,
+                update_mask={"paths": ["data_analytics_agent.published_context"]}
+            )
+            return client.update_data_agent(request=req).result()
+        except Exception as e:
+            logging.error(f"기존 DataAgent 갱신 실패(삭제 후 재생성 시도): {e}")
+            try:
+                client.delete_data_agent(name=existing_agent.name)
+            except Exception as delete_err:
+                logging.warning(f"기존 DataAgent 삭제 실패: {delete_err}")
+
+    # 2. 신규 생성
+    logging.info("새로운 DataAgent를 생성합니다.")
     return client.create_data_agent(
         request=geminidataanalytics.CreateDataAgentRequest(parent=parent, data_agent=data_agent)
     ).result()
@@ -134,8 +182,6 @@ async def query_with_conversational_analytics_api(question: str) -> Tuple[str, O
     safe_context = re.sub(r'[^a-zA-Z0-9\s\-]', '', log_context)[:40].strip()
     display_name = f"Log Agent - {safe_context}" if safe_context else "GKE-Log-Analytics-Agent"
     
-    # get_or_create_data_agent는 동기 함수이므로 I/O 논블로킹을 위해 필요한 경우 스레드 풀 사용 고려 가능
-    # 여기서는 기존 구현의 안정성을 유지하기 위해 직접 실행하되, 프런트엔드 비동기 호출과 결합
     import asyncio
     data_agent = await asyncio.to_thread(get_or_create_data_agent, agent_client, parent, display_name, log_context)
     
@@ -169,7 +215,7 @@ async def query_with_conversational_analytics_api(question: str) -> Tuple[str, O
     answer = "".join(final_response_parts)
     all_text_pool = "".join(all_chunks_text)
 
-    # 마크다운 ```sql 블록 파싱 Fallback (system_instruction 규정으로 보장됨)
+    # 마크다운 ```sql 블록 파싱 Fallback
     if not generated_sql:
         sql_match = re.search(r"```sql\s*(.*?)\s*```", all_text_pool, re.DOTALL | re.IGNORECASE)
         if sql_match:

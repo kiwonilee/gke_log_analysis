@@ -50,3 +50,29 @@ MANIFEST
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Testing and Coverage cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+
+# Local temporary/test files & leftovers
+.superpowers/
+custom_ca_fallback/
+test_ca_client.py
+test_adk_comparison.py
+
+docs/
